@@ -107,7 +107,7 @@ len_zero = "allow"
 uninlined_format_args = "warn"
 
 [workspace]
-members = ["js", "fuzz"]
+members = ["js", "fuzz", "wasm"]
 
 [workspace.dependencies]
 serde = { version = "1.0.228", features = ["derive", "rc"] }

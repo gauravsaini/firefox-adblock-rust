@@ -13,3 +13,4 @@ js/artifacts.json
 ignored/
 NDK/
 .cargo
+extension/pkg/
