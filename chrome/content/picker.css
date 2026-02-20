@@ -1,0 +1,91 @@
+.adblock-rust-picker-overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2147483647;
+  pointer-events: none;
+  background: rgba(0, 0, 0, 0.1);
+  cursor: crosshair;
+}
+
+.adblock-rust-highlighter {
+  position: absolute;
+  border: 2px solid #DEA584; /* Rust Orange */
+  background: rgba(222, 165, 132, 0.2);
+  pointer-events: none;
+  transition: all 0.1s ease-out;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.5);
+  z-index: 2147483646;
+}
+
+.adblock-rust-dialog {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  background: #fff;
+  padding: 15px;
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  z-index: 2147483647;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  border: 1px solid #e2e8f0;
+  width: 300px;
+}
+
+.adblock-rust-dialog h3 {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 600;
+  color: #2d3748;
+}
+
+.adblock-rust-dialog code {
+  display: block;
+  background: #f7fafc;
+  padding: 8px;
+  border-radius: 4px;
+  font-family: monospace;
+  font-size: 12px;
+  color: #4a5568;
+  word-break: break-all;
+  max-height: 60px;
+  overflow-y: auto;
+  border: 1px solid #cbd5e0;
+}
+
+.adblock-rust-buttons {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.adblock-rust-btn {
+  padding: 6px 12px;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: none;
+}
+
+.adblock-rust-btn-create {
+  background: #DEA584; /* Rust Orange */
+  color: white;
+}
+.adblock-rust-btn-create:hover {
+  background: #c58d6d;
+}
+
+.adblock-rust-btn-cancel {
+  background: #edf2f7;
+  color: #4a5568;
+}
+.adblock-rust-btn-cancel:hover {
+  background: #e2e8f0;
+}

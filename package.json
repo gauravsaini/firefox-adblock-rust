@@ -37,5 +37,9 @@
     "update-lists": "node data/update-lists.js",
     "postinstall": "npm run build-release",
     "test": "cargo test"
+  },
+  "devDependencies": {
+    "@cliqz/adblocker": "^1.34.0",
+    "cross-fetch": "^4.1.0"
   }
 }
