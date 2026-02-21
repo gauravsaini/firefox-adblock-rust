@@ -12,7 +12,15 @@
     "service_worker": "background/background.js",
     "type": "module"
   },
-  "permissions": ["declarativeNetRequest", "storage", "tabs", "alarms"],
+  "permissions": [
+    "declarativeNetRequest",
+    "storage",
+    "tabs",
+    "alarms",
+    "scripting",
+    "activeTab",
+    "webRequest"
+  ],
   "host_permissions": ["<all_urls>"],
   "declarative_net_request": {
     "rule_resources": [
@@ -48,5 +56,14 @@
   "options_ui": {
     "page": "options/options.html",
     "open_in_tab": true
-  }
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  },
+  "web_accessible_resources": [
+    {
+      "resources": ["zapper-ui.html", "pkg/adblock_wasm_bg.wasm"],
+      "matches": ["<all_urls>"]
+    }
+  ]
 }

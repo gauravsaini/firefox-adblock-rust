@@ -1,3 +1,5 @@
+import { saveFilterListData, loadFilterListData } from "./storage.js";
+
 // Default filter lists — mirrors Brave's "default" and "default privacy" lists
 // Source: https://github.com/brave/adblock-resources/blob/master/filter_lists/list_catalog.json
 export const DEFAULT_LISTS = [
@@ -304,31 +306,76 @@ export async function fetchFilterList(url) {
 
 export async function getEnabledLists() {
   const stored = await chrome.storage.local.get("filterLists");
-  if (stored.filterLists) {
-    return stored.filterLists;
+  let lists = stored.filterLists;
+
+  if (!lists) {
+    lists = [...DEFAULT_LISTS, ...OPTIONAL_LISTS];
+    await chrome.storage.local.set({ filterLists: lists });
+  } else {
+    // Append any default lists that are missing from storage
+    const existingIds = new Set(lists.map((l) => l.id));
+    let added = false;
+    for (const dl of DEFAULT_LISTS) {
+      if (!existingIds.has(dl.id)) {
+        lists.push(dl);
+        added = true;
+      }
+    }
+    for (const ol of OPTIONAL_LISTS) {
+      if (!existingIds.has(ol.id)) {
+        lists.push(ol);
+        added = true;
+      }
+    }
+    if (added) {
+      await chrome.storage.local.set({ filterLists: lists });
+    }
   }
-  // Initialize with defaults + optional (disabled)
-  const allLists = [...DEFAULT_LISTS, ...OPTIONAL_LISTS];
-  await chrome.storage.local.set({ filterLists: allLists });
-  return allLists;
+  return lists;
 }
 
 export async function setFilterLists(lists) {
   await chrome.storage.local.set({ filterLists: lists });
 }
 
-export async function downloadAllEnabledLists() {
+export async function downloadAllEnabledLists({ forceRefresh = false } = {}) {
   const lists = await getEnabledLists();
   const results = [];
   for (const list of lists) {
     if (!list.enabled) continue;
     try {
-      const text = await fetchFilterList(list.url);
+      let text;
+
+      if (!forceRefresh) {
+        const cached = await loadFilterListData(list.id);
+        if (cached && cached.text) {
+          text = cached.text;
+          console.log(`[adblock-rust] ${list.name}: using cache.`);
+        }
+      }
+
+      if (text === undefined) {
+        text = await fetchFilterList(list.url);
+        await saveFilterListData(list.id, { text, timestamp: Date.now() });
+        console.log(
+          `[adblock-rust] Downloaded ${list.name} (${text.split("\n").length} lines)`,
+        );
+      }
+
       results.push({ id: list.id, text, format: "standard" });
-      console.log(
-        `[adblock-rust] Downloaded ${list.name} (${text.split("\n").length} lines)`,
-      );
     } catch (e) {
+      // Network failed — fall back to stale cache if available
+      try {
+        const cached = await loadFilterListData(list.id);
+        if (cached && cached.text) {
+          results.push({ id: list.id, text: cached.text, format: "standard" });
+          console.warn(
+            `[adblock-rust] ${list.name}: network failed, using stale cache.`,
+            e,
+          );
+          continue;
+        }
+      } catch (_) {}
       console.warn(`[adblock-rust] Failed to download ${list.name}:`, e);
     }
   }

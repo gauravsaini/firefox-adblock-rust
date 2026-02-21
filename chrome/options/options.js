@@ -94,7 +94,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   };
 
   async function loadFilterLists() {
-    const { filterLists } = await chrome.storage.local.get("filterLists");
+    const { filterLists } = await chrome.runtime.sendMessage({
+      type: "getFilterLists",
+    });
     listContainer.innerHTML = "";
     if (!filterLists) return;
 

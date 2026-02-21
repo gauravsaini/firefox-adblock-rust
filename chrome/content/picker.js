@@ -1,5 +1,10 @@
 (function () {
-  if (window.adblockRustPickerActive) return;
+  if (window.adblockRustPickerActive) {
+    // If clicked again while active, simply remove UI and exit (toggle off)
+    const cleanupEvent = new Event("adblockRustPickerCleanup");
+    document.dispatchEvent(cleanupEvent);
+    return;
+  }
   window.adblockRustPickerActive = true;
 
   // Create UI overlay
@@ -19,6 +24,7 @@
     <div class="adblock-rust-options-list" style="max-height: 150px; overflow-y: auto; margin: 10px 0; border: 1px solid #e2e8f0; border-radius: 4px;"></div>
     <div class="adblock-rust-buttons">
       <button class="adblock-rust-btn adblock-rust-btn-cancel">Cancel</button>
+      <button class="adblock-rust-btn adblock-rust-btn-preview">Preview</button>
       <button class="adblock-rust-btn adblock-rust-btn-create">Create</button>
     </div>
   `;
@@ -87,13 +93,16 @@
         break;
       }
     }
-    if (valid) {
+    if (valid && path.length > 0) {
       const structural = path.join(" > ");
-      options.push({
-        type: "Path",
-        selector: "##" + structural,
-        raw: structural,
-      });
+      // Only offer path if it's not a naked generic tag
+      if (structural !== "div" && structural !== "span") {
+        options.push({
+          type: "Path",
+          selector: "##" + structural,
+          raw: structural,
+        });
+      }
     }
 
     return options;
@@ -171,15 +180,26 @@
   }
 
   function onClick(e) {
-    if (isPaused && !dialog.contains(e.target)) return;
-    if (e.target === overlay || dialog.contains(e.target)) return;
-    if (e.target.closest(".adblock-rust-dialog")) return;
+    // Allow interactions inside our own dialog UI
+    if (dialog.contains(e.target) || e.target.closest(".adblock-rust-dialog")) {
+      return;
+    }
 
+    // Crucially, intercept and stop ALL other clicks on the page while Zapper is active.
+    // This prevents links from opening, videos from playing, etc.
     e.preventDefault();
     e.stopPropagation();
+    e.stopImmediatePropagation();
+
+    // If dialog is already open (paused), ignore clicks outside of it
+    if (isPaused) return;
+
+    // Ignore clicks on our overlay/highlighter elements
+    if (e.target === overlay || e.target === highlighter) return;
 
     isPaused = true;
-    const options = getSelectors(currentElement);
+    const targetEl = currentElement || e.target;
+    const options = getSelectors(targetEl);
     renderOptions(options);
 
     // Position dialog near click but stay on screen
@@ -202,6 +222,38 @@
     dialog.style.display = "flex";
   }
 
+  // Preview state
+  let previewStyleEl = null;
+  let isPreviewing = false;
+
+  function stopPreview() {
+    if (previewStyleEl) {
+      previewStyleEl.remove();
+      previewStyleEl = null;
+    }
+    isPreviewing = false;
+    const btn = dialog.querySelector(".adblock-rust-btn-preview");
+    if (btn) {
+      btn.textContent = "Preview";
+      btn.classList.remove("active");
+    }
+  }
+
+  function startPreview(selector) {
+    if (!previewStyleEl) {
+      previewStyleEl = document.createElement("style");
+      previewStyleEl.id = "adblock-rust-preview-style";
+      document.head.appendChild(previewStyleEl);
+    }
+    previewStyleEl.textContent = `${selector} { display: none !important; opacity: 0 !important; }`;
+    isPreviewing = true;
+    const btn = dialog.querySelector(".adblock-rust-btn-preview");
+    if (btn) {
+      btn.textContent = "Stop Preview";
+      btn.classList.add("active");
+    }
+  }
+
   // Actions
   dialog
     .querySelector(".adblock-rust-btn-create")
@@ -216,11 +268,67 @@
         const hostname = window.location.hostname;
         const rule = `${hostname}${option.selector}`;
 
-        // Apply immediately
+        // Apply immediately and execute scroll-lock heuristic (port of uBOL-home)
         try {
-          document
-            .querySelectorAll(option.raw)
-            .forEach((el) => (el.style.display = "none"));
+          const removedElems = document.querySelectorAll(option.raw);
+          const getStyleValue = (elem, prop) => {
+            const style = window.getComputedStyle(elem);
+            return style ? style[prop] : "";
+          };
+
+          let maybeScrollLocked = false;
+
+          removedElems.forEach((el) => {
+            el.style.display = "none";
+
+            // Heuristic to detect scroll-locking
+            let curr = el;
+            while (
+              curr !== null &&
+              !maybeScrollLocked &&
+              curr !== document.body
+            ) {
+              maybeScrollLocked =
+                parseInt(getStyleValue(curr, "zIndex"), 10) >= 1000 ||
+                getStyleValue(curr, "position") === "fixed";
+              curr = curr.parentElement;
+            }
+          });
+
+          // If we likely removed a modal overlay, try to unlock the scroll bars
+          if (maybeScrollLocked) {
+            const doc = document;
+            if (getStyleValue(doc.body, "overflowY") === "hidden") {
+              doc.body.style.setProperty("overflow", "auto", "important");
+            }
+            if (getStyleValue(doc.body, "position") === "fixed") {
+              doc.body.style.setProperty("position", "initial", "important");
+            }
+            if (getStyleValue(doc.documentElement, "position") === "fixed") {
+              doc.documentElement.style.setProperty(
+                "position",
+                "initial",
+                "important",
+              );
+            }
+            if (getStyleValue(doc.documentElement, "overflowY") === "hidden") {
+              doc.documentElement.style.setProperty(
+                "overflow",
+                "auto",
+                "important",
+              );
+            }
+
+            // Add a generic cosmetic rule to keep it unlocked permanently
+            chrome.runtime.sendMessage({
+              type: "createRule",
+              rule: `${hostname}##body:style(overflow: auto !important; position: initial !important;)`,
+            });
+            chrome.runtime.sendMessage({
+              type: "createRule",
+              rule: `${hostname}##html:style(overflow: auto !important; position: initial !important;)`,
+            });
+          }
         } catch (e) {}
 
         chrome.runtime.sendMessage({ type: "createRule", rule });
@@ -232,18 +340,57 @@
     .querySelector(".adblock-rust-btn-cancel")
     .addEventListener("click", () => {
       isPaused = false;
+      stopPreview();
       dialog.style.display = "none";
+    });
+
+  dialog
+    .querySelector(".adblock-rust-btn-preview")
+    .addEventListener("click", () => {
+      if (isPreviewing) {
+        stopPreview();
+      } else {
+        const selectedIdx = parseInt(
+          dialog.querySelector('input[name="picker_selector"]:checked')
+            ?.value || 0,
+        );
+        const option = generatedOptions[selectedIdx];
+        if (option) {
+          startPreview(option.raw);
+        }
+      }
+    });
+
+  // Update preview live if active and user clicks a different ratio button
+  dialog
+    .querySelector(".adblock-rust-options-list")
+    .addEventListener("change", (e) => {
+      if (isPreviewing && e.target.name === "picker_selector") {
+        const selectedIdx = parseInt(e.target.value);
+        const option = generatedOptions[selectedIdx];
+        if (option) {
+          startPreview(option.raw); // Updates the existing style
+        }
+      }
     });
 
   function cleanup() {
     window.removeEventListener("mouseover", onMouseOver);
     window.removeEventListener("click", onClick, true);
     document.removeEventListener("keyup", onEsc);
-    overlay.remove();
-    highlighter.remove();
-    dialog.remove();
+    document.removeEventListener("adblockRustPickerCleanup", cleanup);
+
+    if (overlay && overlay.parentNode) overlay.parentNode.removeChild(overlay);
+    if (highlighter && highlighter.parentNode)
+      highlighter.parentNode.removeChild(highlighter);
+    if (dialog && dialog.parentNode) dialog.parentNode.removeChild(dialog);
+
+    stopPreview();
+
     window.adblockRustPickerActive = false;
   }
+
+  document.addEventListener("adblockRustPickerCleanup", cleanup);
 
   function onEsc(e) {
     if (e.key === "Escape") {

@@ -3,6 +3,7 @@ import {
   setupPeriodicUpdate,
   getEngine,
   isReady,
+  waitForReady,
   rebuildEngine,
 } from "./engine-manager.js";
 import {
@@ -10,6 +11,7 @@ import {
   getBlockedCount,
   resetBlockedCount,
 } from "./request-handler.js";
+import { getEnabledLists } from "./filter-lists.js";
 
 let enabled = true;
 
@@ -51,6 +53,11 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         sendResponse({ count });
         break;
       }
+
+      case "getFilterLists":
+        const lists = await getEnabledLists();
+        sendResponse({ filterLists: lists });
+        break;
 
       case "toggleEnabled":
         enabled = !enabled;
@@ -100,6 +107,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       case "getCosmeticResources":
         const { cosmeticEnabled } =
           await chrome.storage.local.get("cosmeticEnabled");
+
+        await waitForReady(); // Wait for engine to initialize on cold starts
+
         if (!isReady() || cosmeticEnabled === false) {
           sendResponse(null);
           return;
@@ -116,6 +126,9 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       case "getHiddenClassIdSelectors":
         const { cosmeticEnabled: ce } =
           await chrome.storage.local.get("cosmeticEnabled");
+
+        await waitForReady();
+
         if (!isReady() || ce === false) {
           sendResponse([]);
           return;
@@ -142,13 +155,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       case "activatePicker":
         const tabId = message.tabId;
         try {
-          await chrome.scripting.insertCSS({
-            target: { tabId },
-            files: ["content/picker.css"],
-          });
+          // Step 1: inject iframe overlay manager (sets self.adblockOverlay)
           await chrome.scripting.executeScript({
             target: { tabId },
-            files: ["content/picker.js"],
+            files: ["content/tool-overlay.js"],
+          });
+          // Step 2: inject zapper which calls adblockOverlay.install('zapper-ui.html', ...)
+          await chrome.scripting.executeScript({
+            target: { tabId },
+            files: ["content/zapper.js"],
           });
           sendResponse({ ok: true });
         } catch (e) {

@@ -12,7 +12,7 @@
 
 .adblock-rust-highlighter {
   position: absolute;
-  border: 2px solid #DEA584; /* Rust Orange */
+  border: 2px solid #dea584; /* Rust Orange */
   background: rgba(222, 165, 132, 0.2);
   pointer-events: none;
   transition: all 0.1s ease-out;
@@ -27,8 +27,10 @@
   background: #fff;
   padding: 15px;
   border-radius: 8px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  font-family:
+    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial,
+    sans-serif;
   z-index: 2147483647;
   pointer-events: auto;
   display: flex;
@@ -75,7 +77,7 @@
 }
 
 .adblock-rust-btn-create {
-  background: #DEA584; /* Rust Orange */
+  background: #dea584; /* Rust Orange */
   color: white;
 }
 .adblock-rust-btn-create:hover {
@@ -88,4 +90,16 @@
 }
 .adblock-rust-btn-cancel:hover {
   background: #e2e8f0;
+}
+
+.adblock-rust-btn-preview {
+  background: #e2e8f0;
+  color: #2d3748;
+}
+.adblock-rust-btn-preview:hover {
+  background: #cbd5e0;
+}
+.adblock-rust-btn-preview.active {
+  background: #4a5568;
+  color: white;
 }
