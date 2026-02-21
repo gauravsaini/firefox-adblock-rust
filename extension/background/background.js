@@ -1,10 +1,22 @@
-import { initialize, setupPeriodicUpdate, getEngine, isReady, rebuildEngine } from "./engine-manager.js";
-import { setupRequestListener, getBlockedCount, resetBlockedCount } from "./request-handler.js";
+import {
+  initialize,
+  setupPeriodicUpdate,
+  getEngine,
+  isReady,
+  waitForReady,
+  rebuildEngine,
+} from "./engine-manager.js";
+import {
+  setupRequestListener,
+  getBlockedCount,
+  resetBlockedCount,
+} from "./request-handler.js";
+import { getEnabledLists } from "./filter-lists.js";
 
 let enabled = true;
 
 async function start() {
-  const stored = await browser.storage.local.get("enabled");
+  const stored = await browser.storage.local.get(["enabled", "cosmeticEnabled"]);
   enabled = stored.enabled !== false;
 
   if (enabled) {
@@ -31,15 +43,16 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return Promise.resolve({
         enabled,
         ready: isReady(),
-        blockedCount: sender.tab
-          ? getBlockedCount(sender.tab.id)
-          : 0,
+        blockedCount: sender.tab ? getBlockedCount(sender.tab.id) : 0,
       });
 
     case "getBlockedCount": {
       const count = getBlockedCount(message.tabId);
       return Promise.resolve({ count });
     }
+
+    case "getFilterLists":
+      return getEnabledLists().then((lists) => ({ filterLists: lists }));
 
     case "toggleEnabled":
       enabled = !enabled;
@@ -63,13 +76,18 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
       return Promise.resolve({ ok: true });
 
     case "getCosmeticResources":
-      if (!isReady()) return Promise.resolve(null);
-      try {
-        const engine = getEngine();
-        return Promise.resolve(engine.urlCosmeticResources(message.url));
-      } catch (e) {
-        return Promise.resolve(null);
-      }
+      return browser.storage.local.get("cosmeticEnabled").then(({ cosmeticEnabled }) =>
+        waitForReady().then(() => {
+          if (!isReady() || cosmeticEnabled === false) return null;
+          try {
+            const engine = getEngine();
+            engine.enableTag("cosmetic");
+            return engine.urlCosmeticResources(message.url);
+          } catch (e) {
+            return null;
+          }
+        }),
+      );
 
     case "getHiddenClassIdSelectors":
       if (!isReady()) return Promise.resolve([]);
@@ -79,8 +97,8 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
           engine.hiddenClassIdSelectors(
             message.classes,
             message.ids,
-            message.exceptions || []
-          )
+            message.exceptions || [],
+          ),
         );
       } catch (e) {
         return Promise.resolve([]);
@@ -88,6 +106,32 @@ browser.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
     case "rebuildEngine":
       return rebuildEngine().then(() => ({ ok: true }));
+
+    case "activatePicker": {
+      const tabId = message.tabId;
+      return browser.scripting
+        .executeScript({ target: { tabId }, files: ["content/tool-overlay.js"] })
+        .then(() =>
+          browser.scripting.executeScript({
+            target: { tabId },
+            files: ["content/zapper.js"],
+          }),
+        )
+        .then(() => ({ ok: true }))
+        .catch((e) => {
+          console.error("Failed to inject picker:", e);
+          return { ok: false, error: e.message };
+        });
+    }
+
+    case "createRule": {
+      const rule = message.rule;
+      if (!rule) return Promise.resolve({ ok: true });
+      return browser.storage.local.get("customRules").then(({ customRules }) => {
+        const updated = (customRules || "") + "\n" + rule;
+        return browser.storage.local.set({ customRules: updated });
+      }).then(() => rebuildEngine()).then(() => ({ ok: true }));
+    }
 
     default:
       return false;

@@ -101,22 +101,43 @@
       return true;
     }
 
-    // No skip button — try to force-end the ad via the video element
-    const video = player.querySelector("video");
-    if (video && video.duration && isFinite(video.duration)) {
-      // Jump to end of ad
-      video.currentTime = video.duration;
-      console.log("[adblock-rust][yt-fix] Jumped to end of ad video (duration:", video.duration, ")");
+    // No skip button — force-end the ad via the video element.
+    // IMPORTANT: YouTube uses two <video> elements: html5-main-video (first in DOM)
+    // and html5-ad-video. querySelector("video") returns the main video, which when
+    // jumped-to-end fires "ended" on the main content before it ever plays, leaving
+    // the player in a broken finished state. Always target the ad video specifically.
+    const adVideo =
+      player.querySelector(".html5-ad-video") ||
+      player.querySelector("video.ad-video") ||
+      Array.from(player.querySelectorAll("video")).find(
+        (v) => !v.paused && v.readyState >= 2,
+      ) ||
+      player.querySelector("video");
+
+    if (adVideo && adVideo.duration && isFinite(adVideo.duration)) {
+      adVideo.currentTime = adVideo.duration;
       return true;
     }
 
     // Mute the ad at minimum
-    if (video && !video.muted) {
-      video.muted = true;
-      console.log("[adblock-rust][yt-fix] Muted ad video");
+    if (adVideo && !adVideo.muted) {
+      adVideo.muted = true;
     }
 
     return false;
+  }
+
+  // After ad-showing is removed, ensure the main video actually starts.
+  // YouTube sometimes leaves the main video paused after a forced ad-end.
+  function recoverMainVideo() {
+    const player = document.querySelector("#movie_player");
+    if (!player || player.classList.contains("ad-showing")) return;
+    const mainVideo =
+      player.querySelector(".html5-main-video") ||
+      player.querySelector("video");
+    if (mainVideo && mainVideo.paused && mainVideo.readyState >= 3) {
+      mainVideo.play().catch(() => {});
+    }
   }
 
   // ====================================================================
@@ -129,11 +150,12 @@
       return;
     }
 
-    console.log("[adblock-rust][yt-fix] Watching #movie_player for ads");
-
+    let wasShowingAd = false;
     const observer = new MutationObserver(() => {
-      if (player.classList.contains("ad-showing")) {
-        console.log("[adblock-rust][yt-fix] Ad detected, attempting skip...");
+      const isShowingAd = player.classList.contains("ad-showing");
+
+      if (isShowingAd) {
+        wasShowingAd = true;
         // Try immediately, then retry a few times
         if (!trySkipAd()) {
           let retries = 0;
@@ -144,6 +166,10 @@
             retries++;
           }, 300);
         }
+      } else if (wasShowingAd) {
+        // ad-showing just cleared — kick the main video if it's stuck paused
+        wasShowingAd = false;
+        setTimeout(recoverMainVideo, 200);
       }
     });
 

@@ -1,0 +1,322 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="color-scheme" content="light dark">
+<title>Adblock Rust - Element Picker</title>
+<style>
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+html, body {
+  background: transparent;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* Full-screen SVG overlay */
+svg#overlay {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: auto;
+  cursor: crosshair;
+}
+#svg-ocean {
+  fill: rgba(0, 0, 0, 0.38);
+  fill-rule: evenodd;
+}
+#svg-islands {
+  fill: rgba(222, 165, 132, 0.22);
+  stroke: #dea584;
+  stroke-width: 2px;
+  fill-rule: evenodd;
+  pointer-events: none;
+}
+
+/* ===== Picker panel ===== */
+#panel {
+  position: fixed;
+  bottom: 0;
+  right: 0;
+  width: 480px;
+  max-height: 85vh;
+  background: #fff;
+  border-radius: 10px 0 0 0;
+  border: 1px solid #d0d7de;
+  border-bottom: none;
+  border-right: none;
+  box-shadow: -4px -4px 24px rgba(0,0,0,0.18);
+  display: none;
+  flex-direction: column;
+  overflow: hidden;
+  z-index: 10;
+  pointer-events: auto;
+}
+
+/* Window bar */
+#windowbar {
+  display: flex;
+  align-items: center;
+  gap: 0;
+  background: #f6f8fa;
+  border-bottom: 1px solid #d0d7de;
+  padding: 6px 10px;
+  flex-shrink: 0;
+}
+#windowbar-title {
+  flex: 1;
+  font-size: 12px;
+  font-weight: 600;
+  color: #57606a;
+  letter-spacing: 0.02em;
+  text-transform: uppercase;
+}
+#quit-btn {
+  width: 26px; height: 26px;
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer;
+  border-radius: 5px;
+  color: #57606a;
+  font-size: 18px;
+  line-height: 1;
+  border: none;
+  background: none;
+}
+#quit-btn:hover { background: #ffd7d9; color: #cf222e; }
+
+/* Slider section */
+#slider-section {
+  padding: 12px 14px 8px;
+  border-bottom: 1px solid #eaecef;
+  flex-shrink: 0;
+}
+#slider-label-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+}
+#slider-label {
+  font-size: 12px;
+  color: #57606a;
+}
+#match-count {
+  font-size: 13px;
+  font-weight: 700;
+  color: #0969da;
+  min-width: 28px;
+  text-align: right;
+}
+
+/* Custom range slider matching uBOL style */
+#slider {
+  width: 100%;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 6px;
+  border-radius: 3px;
+  background: #d0d7de;
+  outline: none;
+  cursor: pointer;
+}
+#slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #0969da;
+  cursor: pointer;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.25);
+}
+#slider::-moz-range-thumb {
+  width: 18px; height: 18px;
+  border-radius: 50%;
+  background: #0969da;
+  border: none;
+  cursor: pointer;
+}
+#slider:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+#slider:disabled::-webkit-slider-thumb { cursor: default; }
+
+/* Toolbar: Pick | Preview | Create */
+#toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-bottom: 1px solid #eaecef;
+  flex-shrink: 0;
+}
+#toolbar-left { display: flex; gap: 6px; flex: 1; }
+
+button {
+  padding: 5px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: background 0.12s, color 0.12s;
+  white-space: nowrap;
+}
+#btn-pick {
+  background: #f6f8fa;
+  border-color: #d0d7de;
+  color: #24292f;
+}
+#btn-pick:hover { background: #e9ecef; border-color: #bbc0c5; }
+
+#btn-preview {
+  background: #f6f8fa;
+  border-color: #d0d7de;
+  color: #24292f;
+}
+#btn-preview:hover { background: #e9ecef; border-color: #bbc0c5; }
+#btn-preview.active {
+  background: #ddf4ff;
+  border-color: #54aeff;
+  color: #0969da;
+}
+
+#btn-create {
+  background: #0969da;
+  border-color: #0969da;
+  color: #fff;
+  font-weight: 600;
+}
+#btn-create:hover:not(:disabled) { background: #0757b3; border-color: #0757b3; }
+#btn-create:disabled {
+  background: #cce4ff;
+  border-color: #cce4ff;
+  color: #fff;
+  cursor: not-allowed;
+}
+
+/* Candidate selector list */
+#candidate-list {
+  list-style: none;
+  overflow-y: auto;
+  flex: 1;
+  font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+  font-size: 11.5px;
+  line-height: 1.5;
+  /* Collapsed: show ~3 items */
+  max-height: 120px;
+  transition: max-height 0.2s ease;
+}
+#candidate-list.expanded {
+  max-height: 340px;
+}
+
+#candidate-list li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px;
+  padding: 7px 12px;
+  border-bottom: 1px solid #f0f4f8;
+  cursor: pointer;
+}
+#candidate-list li:last-child { border-bottom: none; }
+#candidate-list li:hover { background: #f6f8fa; }
+
+/* Selector part spans */
+#candidate-list span[data-part] {
+  padding: 1px 4px;
+  border-radius: 3px;
+  cursor: pointer;
+  user-select: none;
+  border: 1px solid transparent;
+  color: #57606a;
+  transition: background 0.1s, color 0.1s;
+}
+#candidate-list span[data-part]:hover {
+  background: #ddf4ff;
+  border-color: #54aeff;
+  color: #0969da;
+}
+/* Active (selected) part */
+#candidate-list span[data-part].on {
+  background: #ddf4ff;
+  border-color: #54aeff;
+  color: #0969da;
+  font-weight: 600;
+}
+
+/* More / Less footer */
+#more-or-less {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 5px 14px;
+  border-top: 1px solid #eaecef;
+  background: #f6f8fa;
+  flex-shrink: 0;
+}
+.more-less-btn {
+  font-size: 11px;
+  color: #0969da;
+  cursor: pointer;
+  padding: 2px 6px;
+  border-radius: 4px;
+  display: none;
+}
+.more-less-btn:hover { background: #ddf4ff; }
+#more-or-less.has-more #btn-more { display: block; }
+#more-or-less.has-less #btn-less { display: block; }
+</style>
+</head>
+<body>
+
+<!-- SVG overlay: ocean (dark with evenodd holes) + islands (highlight outline) -->
+<svg id="overlay">
+  <path id="svg-ocean" d=""></path>
+  <path id="svg-islands" d="M0 0"></path>
+</svg>
+
+<!-- Picker panel (bottom-right, shown after clicking an element) -->
+<div id="panel">
+
+  <!-- Title bar -->
+  <div id="windowbar">
+    <span id="windowbar-title">Block Element</span>
+    <button id="quit-btn" title="Exit picker (Esc)">&#x2715;</button>
+  </div>
+
+  <!-- Slider -->
+  <div id="slider-section">
+    <div id="slider-label-row">
+      <span id="slider-label">Move the slider to select the best match</span>
+      <span id="match-count">0</span>
+    </div>
+    <input id="slider" type="range" min="0" max="0" value="0" step="1" disabled>
+  </div>
+
+  <!-- Toolbar -->
+  <div id="toolbar">
+    <div id="toolbar-left">
+      <button id="btn-pick">Pick</button>
+      <button id="btn-preview">Preview</button>
+    </div>
+    <button id="btn-create" disabled>Create</button>
+  </div>
+
+  <!-- Candidate selector list -->
+  <ul id="candidate-list"></ul>
+
+  <!-- More / Less toggle -->
+  <div id="more-or-less">
+    <span id="btn-more" class="more-less-btn">More &#x2228;</span>
+    <span id="btn-less" class="more-less-btn">&#x2227; Less</span>
+  </div>
+
+</div>
+
+<script src="js/zapper-ui.js"></script>
+</body>
+</html>

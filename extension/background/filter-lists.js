@@ -197,6 +197,8 @@ export const OPTIONAL_LISTS = [
   },
 ];
 
+import { saveFilterListData, loadFilterListData } from "./storage.js";
+
 export async function fetchFilterList(url) {
   const response = await fetch(url);
   if (!response.ok) {
@@ -220,16 +222,44 @@ export async function setFilterLists(lists) {
   await browser.storage.local.set({ filterLists: lists });
 }
 
-export async function downloadAllEnabledLists() {
+export async function downloadAllEnabledLists({ forceRefresh = false } = {}) {
   const lists = await getEnabledLists();
   const results = [];
   for (const list of lists) {
     if (!list.enabled) continue;
     try {
-      const text = await fetchFilterList(list.url);
+      let text;
+
+      if (!forceRefresh) {
+        const cached = await loadFilterListData(list.id);
+        if (cached && cached.text) {
+          text = cached.text;
+          console.log(`[adblock-rust] ${list.name}: using cache.`);
+        }
+      }
+
+      if (text === undefined) {
+        text = await fetchFilterList(list.url);
+        await saveFilterListData(list.id, { text, timestamp: Date.now() });
+        console.log(
+          `[adblock-rust] Downloaded ${list.name} (${text.split("\n").length} lines)`,
+        );
+      }
+
       results.push({ id: list.id, text, format: "standard" });
-      console.log(`[adblock-rust] Downloaded ${list.name} (${text.split("\n").length} lines)`);
     } catch (e) {
+      // Network failed — fall back to stale cache if available
+      try {
+        const cached = await loadFilterListData(list.id);
+        if (cached && cached.text) {
+          results.push({ id: list.id, text: cached.text, format: "standard" });
+          console.warn(
+            `[adblock-rust] ${list.name}: network failed, using stale cache.`,
+            e,
+          );
+          continue;
+        }
+      } catch (_) {}
       console.warn(`[adblock-rust] Failed to download ${list.name}:`, e);
     }
   }

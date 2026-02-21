@@ -16,8 +16,13 @@
     "webRequestBlocking",
     "<all_urls>",
     "storage",
-    "tabs"
+    "tabs",
+    "alarms",
+    "scripting",
+    "activeTab"
   ],
+  "content_security_policy": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'",
+  "web_accessible_resources": ["zapper-ui.html", "pkg/adblock_wasm_bg.wasm"],
   "content_scripts": [
     {
       "matches": ["*://*.youtube.com/*"],
