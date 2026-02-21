@@ -4,22 +4,27 @@ document.addEventListener("DOMContentLoaded", async () => {
   const statusEl = document.getElementById("status");
   const whitelistBtn = document.getElementById("btn-whitelist");
   const optionsBtn = document.getElementById("btn-options");
+  const pickerBtn = document.getElementById("btn-picker");
 
   // Get current tab
   const [tab] = await browser.tabs.query({ active: true, currentWindow: true });
 
   // Get status from background
   try {
-    const { enabled, ready, blockedCount } = await browser.runtime.sendMessage({
-      type: "getBlockedCount",
-      tabId: tab.id,
-    }).then((r) => ({ enabled: true, ready: true, blockedCount: r.count }));
+    const { enabled, ready, blockedCount } = await browser.runtime
+      .sendMessage({
+        type: "getBlockedCount",
+        tabId: tab.id,
+      })
+      .then((r) => ({ enabled: true, ready: true, blockedCount: r.count }));
 
     const statusResp = await browser.runtime.sendMessage({ type: "getStatus" });
 
     toggleEl.checked = statusResp.enabled;
     countEl.textContent = blockedCount || 0;
-    statusEl.textContent = statusResp.ready ? "Protection active" : "Initializing...";
+    statusEl.textContent = statusResp.ready
+      ? "Protection active"
+      : "Initializing...";
   } catch (e) {
     statusEl.textContent = "Error loading status";
   }
@@ -27,7 +32,9 @@ document.addEventListener("DOMContentLoaded", async () => {
   // Toggle
   toggleEl.addEventListener("change", async () => {
     const resp = await browser.runtime.sendMessage({ type: "toggleEnabled" });
-    statusEl.textContent = resp.enabled ? "Protection active" : "Protection disabled";
+    statusEl.textContent = resp.enabled
+      ? "Protection active"
+      : "Protection disabled";
   });
 
   // Whitelist
@@ -46,6 +53,13 @@ document.addEventListener("DOMContentLoaded", async () => {
         statusEl.textContent = "Failed to whitelist";
       }
     }
+  });
+
+  // Picker
+  pickerBtn.addEventListener("click", () => {
+    // Send message to background to inject picker
+    browser.runtime.sendMessage({ type: "activatePicker", tabId: tab.id });
+    window.close(); // Close popup
   });
 
   // Options

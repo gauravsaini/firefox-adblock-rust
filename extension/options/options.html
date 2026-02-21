@@ -1,46 +1,208 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
-<head>
-  <meta charset="utf-8">
-  <title>Adblock Rust - Options</title>
-  <link rel="stylesheet" href="options.css">
-</head>
-<body>
-  <div class="container">
-    <h1>Adblock Rust Options</h1>
-
-    <section>
-      <h2>Filter Lists</h2>
-      <div id="filter-lists"></div>
-      <div class="add-list">
-        <input type="text" id="custom-list-url" placeholder="Enter custom filter list URL">
-        <button id="btn-add-list">Add</button>
+  <head>
+    <meta charset="utf-8" />
+    <title>Adblock Rust - Settings</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <nav class="sidebar">
+      <div class="logo">
+        <img src="../icons/icon-48.png" width="32" height="32" alt="Logo" />
+        <span>Adblock Rust</span>
       </div>
-      <button id="btn-update-lists" class="primary">Update all lists now</button>
-    </section>
+      <ul class="nav-links">
+        <li class="nav-item">
+          <a class="nav-link active" data-tab="general">General</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-tab="filters">Filter Lists</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-tab="rules">My Rules</a>
+        </li>
+        <li class="nav-item">
+          <a class="nav-link" data-tab="advanced">Advanced</a>
+        </li>
+      </ul>
+    </nav>
 
-    <section>
-      <h2>Custom Rules</h2>
-      <textarea id="custom-rules" rows="8" placeholder="Enter custom filter rules, one per line&#10;Example: ||ads.example.com^"></textarea>
-      <button id="btn-save-rules" class="primary">Save rules</button>
-    </section>
+    <main class="main-content">
+      <div class="container">
+        <!-- General Tab -->
+        <div id="general" class="tab-pane active">
+          <h1>General Settings</h1>
 
-    <section>
-      <h2>Whitelisted Domains</h2>
-      <div id="whitelist"></div>
-    </section>
+          <div class="card">
+            <h2>Protection Mode</h2>
 
-    <section>
-      <h2>Import / Export</h2>
-      <div class="import-export">
-        <button id="btn-export">Export settings</button>
-        <button id="btn-import">Import settings</button>
-        <input type="file" id="import-file" accept=".json" hidden>
+            <div class="control-group">
+              <div>
+                <div class="control-label">Enable Adblock Rust</div>
+                <div class="control-desc">
+                  Master switch to enable or disable the extension.
+                </div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="toggle-enable" />
+                <span class="slider"></span>
+              </label>
+            </div>
+
+            <div class="control-group">
+              <div>
+                <div class="control-label">Cosmetic Filtering</div>
+                <div class="control-desc">
+                  Hide page elements (ads, banners) that cannot be blocked at
+                  the network layer.
+                </div>
+              </div>
+              <label class="switch">
+                <input type="checkbox" id="toggle-cosmetic" />
+                <span class="slider"></span>
+              </label>
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Statistics</h2>
+            <div class="control-group">
+              <div>
+                <div class="control-label">Resource Replacements</div>
+                <div class="control-desc">
+                  Replace blocked scripts/trackers with neutral local shims
+                  (uBlock compatible).
+                </div>
+              </div>
+              <div style="color: var(--primary-color); font-weight: 600">
+                Active
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Filter Lists Tab -->
+        <div id="filters" class="tab-pane">
+          <h1>Filter Lists</h1>
+          <div class="card">
+            <div class="control-group">
+              <div>
+                <div class="control-label">Update Lists</div>
+                <div class="control-desc">
+                  Fetch the latest rules from configured sources.
+                </div>
+              </div>
+              <button id="btn-update-lists" class="primary btn-sm">
+                Update Now
+              </button>
+            </div>
+          </div>
+
+          <div id="filter-lists-container">
+            <!-- Filter groups injected by JS -->
+          </div>
+
+          <div class="card">
+            <h2>Add Custom List</h2>
+            <div style="display: flex; gap: 10px">
+              <input
+                type="text"
+                id="custom-list-url"
+                placeholder="https://example.com/list.txt"
+                style="margin-bottom: 0"
+              />
+              <button id="btn-add-list" class="primary">Add</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- My Rules Tab -->
+        <div id="rules" class="tab-pane">
+          <h1>My Rules</h1>
+
+          <div class="card">
+            <h2>Whitelisted Domains</h2>
+            <div class="control-desc" style="margin-bottom: 1rem">
+              Disable Adblock Rust on these sites.
+            </div>
+            <div style="display: flex; gap: 10px; margin-bottom: 1rem">
+              <input
+                type="text"
+                id="whitelist-input"
+                placeholder="example.com"
+                style="margin-bottom: 0"
+              />
+              <button id="btn-add-whitelist" class="primary">Allow</button>
+            </div>
+            <div
+              id="whitelist-container"
+              style="
+                max-height: 200px;
+                overflow-y: auto;
+                border: 1px solid var(--border-color);
+                border-radius: var(--radius);
+              "
+            >
+              <!-- Whitelist items injected here -->
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>Custom Filters</h2>
+            <div class="control-desc" style="margin-bottom: 0.5rem">
+              Supports Adblock Plus, Hosts, and uBlock Origin syntax.
+            </div>
+            <textarea
+              id="custom-rules"
+              rows="10"
+              placeholder="||example.com^&#10;/banner/*/img-*.gif&#10;example.com##.ad-banner"
+            ></textarea>
+            <div style="text-align: right">
+              <button id="btn-save-rules" class="primary">Save Rules</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Advanced Tab -->
+        <div id="advanced" class="tab-pane">
+          <h1>Advanced Settings</h1>
+
+          <div class="card">
+            <h2>Backup & Restore</h2>
+            <div class="control-group">
+              <div>
+                <div class="control-label">Export Settings</div>
+                <div class="control-desc">
+                  Save your lists, rules, and whitelist to a file.
+                </div>
+              </div>
+              <button id="btn-export">Export</button>
+            </div>
+            <div class="control-group">
+              <div>
+                <div class="control-label">Import Settings</div>
+                <div class="control-desc">
+                  Restore settings from a valid backup file.
+                </div>
+              </div>
+              <button id="btn-import">Import</button>
+              <input type="file" id="import-file" accept=".json" hidden />
+            </div>
+          </div>
+
+          <div class="card">
+            <h2>About</h2>
+            <p style="color: var(--text-muted); font-size: 0.9rem">
+              Adblock Rust v0.1.0<br />
+              Engine: adblock-rust (WebAssembly generated)<br />
+              Manifest Version: 2 (Firefox)
+            </p>
+          </div>
+        </div>
       </div>
-    </section>
+    </main>
 
     <div id="status-message" class="status-message"></div>
-  </div>
-  <script src="options.js"></script>
-</body>
+    <script src="options.js"></script>
+  </body>
 </html>
